@@ -1,4 +1,8 @@
 #include "systemcalls.h"
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -15,9 +19,9 @@ bool do_system(const char *cmd)
  *  Call the system() function with the command set in the cmd
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
-*/
-
-    return true;
+*/  
+    // if succesfull system returns 0 so true, false o.w.
+    return (system(cmd) == 0);
 }
 
 /**
@@ -61,6 +65,26 @@ bool do_exec(int count, ...)
 
     va_end(args);
 
+    fflush(stdout);
+    pid_t pid = fork(); // for creating a child process
+    int returnvalue; // waiting for the child process to return a value
+
+    if (pid == 0) {
+        // it executes the command 
+        execv(command[0], command);
+        // if execv returns, there must have been an error
+        exit(1);
+    }
+    else if (pid < 0) return false;
+        //
+    else {
+
+        if(waitpid(pid, &returnvalue, 0) == -1) return false;
+        
+        return (WIFEXITED(returnvalue) && WEXITSTATUS(returnvalue) == 0);
+
+    }
+
     return true;
 }
 
@@ -94,6 +118,40 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 */
 
     va_end(args);
+
+    fflush(stdout);
+    pid_t pid = fork();
+    int returnvalue;
+
+    if (pid == 0) {
+        // it executes the command 
+
+        int fileDisc = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        
+        if (fileDisc < 0)
+            exit(1);
+        //
+
+        if (dup2(fileDisc, 1) < 0) // 1 is for output
+            exit(1);
+        //
+
+        close(fileDisc);
+
+        execv(command[0], command);
+        // if execv returns, there must have been an error
+        exit(1);
+        
+    }
+    else if (pid < 0) return false;
+        //
+    else {
+
+        if(waitpid(pid, &returnvalue, 0) == -1) return false;
+        
+        return (WIFEXITED(returnvalue) && WEXITSTATUS(returnvalue) == 0);
+
+    }
 
     return true;
 }
